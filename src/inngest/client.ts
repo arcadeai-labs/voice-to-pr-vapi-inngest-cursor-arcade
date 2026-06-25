@@ -14,6 +14,7 @@ export type CodingTaskData = {
   instruction: string;
   slackChannel: string;
   userId: string;
+  actingMethod?: string;
   callerName?: string;
   callerNumber?: string;
   vapiCallId?: string;

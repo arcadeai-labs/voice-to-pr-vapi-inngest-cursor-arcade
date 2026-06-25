@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { serve as inngestServe } from "inngest/hono";
 import { callPageHtml } from "./call-page.js";
 import { config, describeMode } from "./config.js";
+import { identifyCaller } from "./identity.js";
 import { CODING_TASK_EVENT, inngest } from "./inngest/client.js";
 import { functions } from "./inngest/functions.js";
 import {
@@ -72,7 +73,12 @@ app.post("/api/vapi", async (c) => {
     const slackChannel =
       String(call.args.slack_channel ?? "").trim() || config.routing.slackChannel;
     const callerName = String(call.args.caller_name ?? caller.name ?? "").trim() || undefined;
+    const accessCode = String(call.args.access_code ?? "").trim() || undefined;
     const requestId = crypto.randomUUID().slice(0, 8);
+
+    // Identify the caller -> Arcade user_id. The agent's tools then run under
+    // THAT person's OAuth grants (least privilege), not a shared service account.
+    const identity = identifyCaller({ number: caller.number, accessCode });
 
     // Hand off to the durable workflow. We do NOT wait for the PR here — voice
     // needs a sub-second reply, and the agent may run for minutes.
@@ -83,14 +89,17 @@ app.post("/api/vapi", async (c) => {
         repoUrl,
         instruction,
         slackChannel,
-        userId: config.arcade.userId,
+        userId: identity.userId,
+        actingMethod: identity.method,
         callerName,
         callerNumber: caller.number,
         vapiCallId: getCallId(body),
       },
     });
 
-    console.log(`[vapi] queued request ${requestId}: "${instruction}" on ${repoUrl}`);
+    console.log(
+      `[vapi] queued ${requestId} as ${identity.userId} (via ${identity.method}): "${instruction}" on ${repoUrl}`,
+    );
     results.push({
       toolCallId: call.id,
       result: `Got it. I'm starting a Cursor agent on the repo to handle: ${instruction}. I'll post the pull request in the ${slackChannel} channel when it's ready. Your tracking id is ${requestId}.`,

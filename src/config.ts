@@ -23,6 +23,17 @@ export const config = {
     return process.env.PUBLIC_URL ?? "";
   },
 
+  // Maps a caller's phone number (E.164) or spoken access code -> Arcade user_id,
+  // so each caller's tools run under THEIR OAuth grants. JSON in CALLER_MAP, e.g.
+  // {"+15551234567":"alice@acme.com","4242":"alice@acme.com","1337":"bob@acme.com"}
+  get callerMap(): Record<string, string> {
+    try {
+      return JSON.parse(process.env.CALLER_MAP || "{}") as Record<string, string>;
+    } catch {
+      return {};
+    }
+  },
+
   arcade: {
     get apiKey() {
       return process.env.ARCADE_API_KEY ?? "";

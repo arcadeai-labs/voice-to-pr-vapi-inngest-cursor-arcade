@@ -17,9 +17,10 @@ const MAX_POLLS = 60; // 60 polls x 30s = up to 30 minutes of durable waiting.
 export const codingTaskWorkflow = inngest.createFunction(
   { id: "coding-task-workflow", name: "Voice → PR coding task", retries: 2, triggers: { event: CODING_TASK_EVENT } },
   async ({ event, step }) => {
-    const { requestId, repoUrl, instruction, slackChannel, userId, callerName } =
+    const { requestId, repoUrl, instruction, slackChannel, userId, actingMethod, callerName } =
       event.data as CodingTaskData;
     const who = callerName ? `${callerName}` : "A caller";
+    const actingAs = `${userId}${actingMethod ? ` (${actingMethod})` : ""}`;
 
     // Run an Arcade-backed step without letting it block the PR pipeline.
     // A missing OAuth grant is made non-retriable so it skips instantly instead
@@ -47,7 +48,7 @@ export const codingTaskWorkflow = inngest.createFunction(
     await bestEffort("notify-start", () =>
       sendSlackMessage({
         channelName: slackChannel,
-        message: `:telephone_receiver: ${who} asked by voice: "${instruction}". Spinning up a Cursor agent on ${repoUrl}…`,
+        message: `:telephone_receiver: ${who} asked by voice: "${instruction}". Spinning up a Cursor agent on ${repoUrl} — running as ${actingAs}…`,
         userId,
       }),
     );
