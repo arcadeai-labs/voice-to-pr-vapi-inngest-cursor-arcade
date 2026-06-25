@@ -1,0 +1,35 @@
+{
+  "name": "voice-to-pr",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Call your codebase. Voice (Vapi) -> durable workflow (Inngest) -> Cursor Cloud Agent that opens a PR, with Arcade running every authenticated action (Linear + Slack) under per-user OAuth. Runs locally on Node and deploys to Cloudflare Workers.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "inngest": "npx --yes inngest-cli@latest dev -u http://localhost:3000/api/inngest",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
+    "simulate": "tsx scripts/simulate-call.ts",
+    "create-assistant": "tsx scripts/create-assistant.ts",
+    "authorize": "tsx scripts/authorize.ts",
+    "deploy": "wrangler deploy",
+    "cf-dev": "wrangler dev",
+    "cf-typegen": "wrangler types",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "dependencies": {
+    "@arcadeai/arcadejs": "^2.4.1",
+    "@hono/node-server": "^2.0.6",
+    "hono": "^4.12.27",
+    "inngest": "^4.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.104.0"
+  }
+}

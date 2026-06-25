@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "voice-to-pr",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-06-01",
+  // nodejs_compat: Node built-ins; populate_process_env: expose vars+secrets on process.env
+  "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
+  "observability": { "enabled": true },
+
+  // Non-secret config (committed). Secrets go via `wrangler secret put`:
+  //   ARCADE_API_KEY, ARCADE_USER_ID, CURSOR_API_KEY,
+  //   INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY  (+ optional VAPI_PRIVATE_KEY)
+  // Do NOT set INNGEST_DEV in production (absence -> Inngest Cloud).
+  "vars": {
+    "DEFAULT_REPO_URL": "https://github.com/ArcadeAI/cursor-cloud-agents-demo",
+    "SLACK_CHANNEL": "engineering",
+    "LINEAR_TEAM": "Engineering"
+  }
+}
