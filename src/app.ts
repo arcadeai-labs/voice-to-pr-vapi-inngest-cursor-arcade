@@ -102,7 +102,7 @@ async function handleCodingTask(call: ParsedToolCall, caller: Caller, body: Vapi
     return { toolCallId: call.id, error: "I didn't catch what you'd like changed." };
   }
 
-  const repoUrl = String(call.args.repo ?? "").trim() || config.cursor.defaultRepoUrl;
+  const repoUrl = resolveRepo(String(call.args.repo ?? "").trim());
   const slackChannel = String(call.args.slack_channel ?? "").trim() || config.routing.slackChannel;
   const callerName = String(call.args.caller_name ?? caller.name ?? "").trim() || undefined;
   const accessCode = String(call.args.access_code ?? "").trim() || undefined;
@@ -142,7 +142,7 @@ async function handleCodingTask(call: ParsedToolCall, caller: Caller, body: Vapi
 // brief_me: a pure per-user Arcade read (no Cursor) — your inbox + open PRs.
 async function handleBrief(call: ParsedToolCall, caller: Caller) {
   const accessCode = String(call.args.access_code ?? "").trim() || undefined;
-  const repoUrl = String(call.args.repo ?? "").trim() || config.cursor.defaultRepoUrl;
+  const repoUrl = resolveRepo(String(call.args.repo ?? "").trim());
   const identity = identifyCaller({ number: caller.number, accessCode });
 
   const parts: string[] = [];
@@ -191,6 +191,13 @@ async function missingGrants(
     }
   }
   return missing;
+}
+
+// Use the caller-named repo only if it's a real github.com/owner/repo URL;
+// otherwise fall back to the default (the voice agent sometimes turns a project
+// name into a malformed URL like github.com/voice-to-pr).
+function resolveRepo(requested: string): string {
+  return /github\.com\/[^/\s]+\/[^/\s]+/i.test(requested) ? requested : config.cursor.defaultRepoUrl;
 }
 
 function shortUser(userId: string): string {
