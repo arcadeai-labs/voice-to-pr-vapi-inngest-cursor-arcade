@@ -71,6 +71,9 @@ export const config = {
     get publicKey() {
       return process.env.VAPI_PUBLIC_KEY ?? "";
     },
+    get assistantId() {
+      return process.env.VAPI_ASSISTANT_ID ?? "";
+    },
     apiBase: "https://api.vapi.ai",
   },
 

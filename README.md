@@ -114,7 +114,21 @@ curl -X PUT https://<your-worker>.workers.dev/api/inngest
 npm run create-assistant
 ```
 
-Non-secret config (`DEFAULT_REPO_URL`, `SLACK_CHANNEL`, `LINEAR_TEAM`) lives in `wrangler.jsonc` `vars`. The `nodejs_compat_populate_process_env` flag exposes secrets+vars on `process.env`, so the same config code works on Node and Workers.
+Non-secret config (`DEFAULT_REPO_URL`, `SLACK_CHANNEL`) lives in `wrangler.jsonc` `vars`. The `nodejs_compat_populate_process_env` flag exposes secrets+vars on `process.env`, so the same config code works on Node and Workers.
+
+---
+
+## Talk to it (voice)
+
+- **Dashboard**: open the assistant in the Vapi dashboard → **Talk to Assistant** (browser mic, zero setup).
+- **Web button**: visit `https://<your-worker>.workers.dev/call` and tap the mic — a click-to-talk page built on the Vapi web SDK (set `VAPI_PUBLIC_KEY` + `VAPI_ASSISTANT_ID` so it can connect).
+- **Phone**: provision a free Vapi number and attach the assistant, then call it:
+
+```bash
+curl -X POST https://api.vapi.ai/phone-number \
+  -H "Authorization: Bearer $VAPI_PRIVATE_KEY" -H "Content-Type: application/json" \
+  -d '{"provider":"vapi","assistantId":"<assistant-id>","numberDesiredAreaCode":"580"}'
+```
 
 ---
 

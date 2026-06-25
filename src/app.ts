@@ -8,6 +8,7 @@
 
 import { Hono } from "hono";
 import { serve as inngestServe } from "inngest/hono";
+import { callPageHtml } from "./call-page.js";
 import { config, describeMode } from "./config.js";
 import { CODING_TASK_EVENT, inngest } from "./inngest/client.js";
 import { functions } from "./inngest/functions.js";
@@ -28,9 +29,13 @@ app.get("/health", (c) => c.json({ ok: true, mode: describeMode() }));
 app.get("/", (c) =>
   c.text(
     `voice-to-pr is running (${describeMode()}).\n` +
+      `Talk to it in the browser at /call\n` +
       `POST Vapi webhooks to /api/vapi\nInngest endpoint at /api/inngest\n`,
   ),
 );
+
+// Click-to-talk web demo (Vapi browser SDK + your public key).
+app.get("/call", (c) => c.html(callPageHtml(config.vapi.publicKey, config.vapi.assistantId)));
 
 // Inngest mounts its serve handler here (sync + function execution).
 app.on(["GET", "POST", "PUT"], "/api/inngest", inngestServe({ client: inngest, functions }));
