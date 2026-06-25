@@ -2,8 +2,9 @@
 // `tool-calls` message; we must reply HTTP 200 with a { results: [...] } body
 // whose toolCallId matches the request. Docs: https://docs.vapi.ai/tools/custom-tools
 
-// The single tool our voice assistant exposes (see assistant/vapi-assistant.json).
+// The tools our voice assistant exposes (see assistant/vapi-assistant.json).
 export const CODING_TASK_TOOL = "submit_coding_task";
+export const BRIEF_TOOL = "brief_me";
 
 export interface ParsedToolCall {
   id: string;

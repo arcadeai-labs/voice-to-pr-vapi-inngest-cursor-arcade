@@ -1,27 +1,26 @@
-# 📞 voice-to-pr — Call your codebase
+# 📞 voice-to-pr — Call your codebase, and it acts *as you*
 
-**Pick up the phone, describe a bug, hang up. A few minutes later a pull request is waiting in Slack.**
+**Call a number, say what you want, and an agent acts across your tools — opening a PR, posting to Slack, emailing you — all scoped to *your* permissions, enforced per action by Arcade.** Call as someone else and you get different power.
 
-A small, readable, **deployable** example that wires four best-in-class pieces of the 2026 agent stack into one demo — running on Cloudflare Workers.
+The wow is the phone call. The point is **per-user authorization**: the agent's reach is the intersection of "what the agent can do" and "what *that caller* is allowed to do" — something a shared bot token fundamentally can't do.
 
 | Layer | Tool | Role |
 | --- | --- | --- |
-| 🎙️ Voice front door | **[Vapi](https://vapi.ai)** | Answers the call, transcribes intent, calls one tool: `submit_coding_task`. |
-| ⛓️ Durable orchestration | **[Inngest](https://www.inngest.com)** | Runs the multi-step workflow, sleeps/polls while the agent works, retries every step, survives restarts. |
-| 🤖 The coding agent | **[Cursor Cloud Agents](https://cursor.com/docs/cloud-agent/api/endpoints)** | Actually edits the repo and opens the PR. |
-| 🔐 Authenticated action | **[Arcade](https://arcade.dev)** | Posts to Slack **as a real user**, via per-user OAuth — no shared bot tokens. |
-| ☁️ Host | **[Cloudflare Workers](https://workers.cloudflare.com)** | Always-on public endpoint, deployed with `wrangler deploy`. |
+| 🎙️ Voice | **[Vapi](https://vapi.ai)** | Answers the call, identifies the caller, turns intent into tool calls. |
+| ⛓️ Durable orchestration | **[Inngest](https://www.inngest.com)** | Runs the multi-step workflow; sleeps/polls while the agent works; retries each step. |
+| 🤖 Coding | **[Cursor Cloud Agents](https://cursor.com/docs/cloud-agent/api/endpoints)** | Writes the code and pushes a branch. |
+| 🔐 **Per-user authorization** | **[Arcade](https://arcade.dev)** | **Every action (open the PR, post to Slack, send/read Gmail) runs as the *caller*, via their OAuth grant — no bot tokens.** |
+| ☁️ Host | **[Cloudflare Workers](https://workers.cloudflare.com)** | Always-on public endpoint, `wrangler deploy`. |
 
-> Runs locally in **mock mode with zero accounts**, locally **live** with your keys, and **deploys to Cloudflare Workers** for a real always-on URL. It's a bring-your-own-keys template: anyone with their own keys can run or deploy it.
+Cursor opens *code*; Arcade governs the *human-attributed actions* (PR, Slack, Gmail) — complementary, not redundant.
 
 ---
 
-## Why this is a good demo
-
-- **The "wow" is real**: talking to a phone number and getting a PR back lands every time.
-- **It shows why durable execution matters.** A coding agent can run for minutes. Inngest `step.sleep`s between polls so you burn zero compute while waiting, and a flaky Slack post never re-triggers the expensive agent. On Workers this is *ideal* — each step is a sub-second invocation and the 30-minute wait lives on Inngest's side.
-- **It shows what Arcade is _for_.** The agent's Slack post executes scoped to the caller's own OAuth grant — multi-tenant-safe by construction. Swap in or add any Arcade toolkit (Linear, GitHub, Jira, …) without touching auth code.
-- **It mirrors Cursor's own pitch** ("a Linear ticket triggers a cloud agent") generalized to **"a phone call triggers a cloud agent."**
+## Why this is a strong Arcade demo
+- **Two callers, different power, visible consequences.** Same request: an authorized caller gets a PR opened as them + Slack + email; an unauthorized caller gets *none of it* — the agent says exactly what they must connect. Enforced by Arcade at runtime.
+- **Breadth + managed auth.** One request fans across Slack, GitHub, and Gmail with zero token handling in the app. Swap in any of Arcade's toolkits the same way.
+- **A live auth-interrupt.** When a caller lacks a grant, the agent surfaces it mid-call ("connect GitHub and Gmail") instead of failing silently.
+- **Read, not just write.** `brief_me` reads the caller's *own* inbox + open PRs — pure per-user Arcade, no coding agent involved.
 
 ---
 
@@ -29,161 +28,124 @@ A small, readable, **deployable** example that wires four best-in-class pieces o
 
 ```mermaid
 flowchart LR
-    A([📞 Caller]) -->|speaks| V[Vapi assistant]
-    V -->|tool-call webhook| W[/Cloudflare Worker /api/vapi/]
+    A([Caller]) -->|number / access code| ID[identify -> Arcade user_id]
+    ID --> V[Vapi assistant]
+    V -->|tool-call| W[/Cloudflare Worker/]
+    W -->|grant-check| INT[auth-interrupt: name missing grants]
     W -->|inngest.send| IC{{Inngest Cloud}}
-    IC -->|invokes each step| F[/Worker /api/inngest/]
-
-    subgraph F [coding-task-workflow]
-      direction TB
-      N1[notify Slack] --> C1[launch Cursor agent]
-      C1 --> P{poll + sleep 30s\nuntil terminal}
-      P --> R[notify PR ready]
-    end
-
-    N1 -. Arcade .-> SL[(Slack)]
-    R  -. Arcade .-> SL
-    C1 -->|POST /v1/agents| CUR[Cursor Cloud Agent]
-    CUR -->|opens| PR[(GitHub PR)]
+    IC --> WF[durable workflow]
+    WF -->|as caller| SLACK[(Slack)]
+    WF -->|as caller| GMAIL[(Gmail)]
+    WF -->|as caller| GH[(GitHub PR)]
+    CURSOR[Cursor: code + push branch] --> GH
+    GATE[Arcade: per-user grants] -.gates.- SLACK
+    GATE -.gates.- GMAIL
+    GATE -.gates.- GH
 ```
 
-The same Hono app runs locally on Node (`@hono/node-server`) and on Cloudflare Workers. Locally it uses the **Inngest dev server**; in production it uses **Inngest Cloud**.
+---
+
+## The two demo beats
+
+**1. Same agent, different power.** Alice calls, gives her access code, says "fix the footer typo, tell the team." The agent opens the PR **as Alice**, posts Slack **as Alice**, emails Alice — recap names each action. Bob calls with the same ask but hasn't connected GitHub/Gmail: the agent opens nothing on his behalf and tells him live what to connect. (Verified: an authorized caller's PR is authored by *their* GitHub login; an unauthorized caller gets every action denied.)
+
+**2. "Brief me" (pure Arcade read, no Cursor).** "What's on my plate?" -> the agent reads *your* recent emails and *your* open PRs via Arcade. A different caller sees their own — or nothing if they haven't connected.
+
+---
+
+## Tools the assistant exposes
+- `submit_coding_task` — code change -> Cursor branch -> **Arcade opens the PR as the caller** + Slack + Gmail, each per-user.
+- `brief_me` — read the caller's own Gmail + open PRs (per-user, read-only).
+
+Both accept an `access_code`; the caller is mapped to an Arcade `user_id` (see Identity).
+
+---
+
+## Identity (who is the caller)
+`CALLER_MAP` (JSON) maps a phone number (E.164) **or** a spoken access code to an Arcade `user_id`:
+
+```json
+{ "+15551234567": "alice@acme.com", "4242": "alice@acme.com", "1337": "bob@acme.com" }
+```
+
+Vapi gives the caller's number on phone calls; the access code works on web calls too. Unmapped callers fall back to a default. Caller-ID is spoofable, so the access code (or a signed JWT / verified identity) is the real gate before granting permissions.
 
 ---
 
 ## Quickstart (mock mode, no accounts)
-
-Requires Node ≥ 20.6.
+Requires Node >= 20.6.
 
 ```bash
 npm install
 cp .env.example .env          # mock mode is the default
-npm run dev                   # terminal 1: the server
-npm run inngest               # terminal 2: Inngest dev dashboard (http://localhost:8288)
+npm run dev                   # terminal 1: server
+npm run inngest               # terminal 2: Inngest dev dashboard
 npm run simulate -- "Fix the off-by-one in search pagination"   # terminal 3
 ```
 
-In mock mode the "Cursor agent" reports `RUNNING` for a couple of polls then `FINISHED` with a fake PR URL, so you see the durable `step.sleep` loop without spending a cent.
-
----
-
-## Bring your own keys (local live)
-
-Each integration flips mock → live the moment its key is present in `.env`.
-
-| Var | What | Where |
-| --- | --- | --- |
-| `ARCADE_API_KEY` | Arcade tool calls (Slack) | <https://docs.arcade.dev/en/get-started/setup/api-keys> |
-| `ARCADE_USER_ID` | The user whose OAuth the actions run under | your email / stable id |
-| `CURSOR_API_KEY` | Launch Cloud Agents | Cursor Dashboard → API Keys |
-| `DEFAULT_REPO_URL` | Repo the agent edits (must be authorized for the Cursor GitHub app) | a GitHub repo URL |
-| `VAPI_PRIVATE_KEY` | Create the assistant via API | Vapi dashboard |
-| `INNGEST_DEV=1` | Use the local Inngest dev server | keep for local dev |
+## Going live (bring your own keys)
+Each integration flips mock -> live when its key is present in `.env`. Per-user auth setup:
 
 ```bash
-npm run authorize            # one-time: approve Slack OAuth for ARCADE_USER_ID
-npm run dev                  # + npm run inngest in another terminal
-npm run simulate -- "Add a CONTRIBUTING.md"
+# 1. Keys: ARCADE_API_KEY, ARCADE_USER_ID, CURSOR_API_KEY, VAPI_PRIVATE_KEY, VAPI_PUBLIC_KEY (+ INNGEST_DEV=1 local)
+# 2. Map callers to Arcade users:  CALLER_MAP={"4242":"alice@acme.com","1337":"bob@acme.com"}
+# 3. Each user authorizes the tools once (prints links for anything ungranted):
+npm run authorize             # Slack, GitHub (create + list PRs), Gmail (send + list)
 ```
 
-To exercise Vapi locally, expose the server with `npm run tunnel` (cloudflared), set `PUBLIC_URL` to the printed URL, then `npm run create-assistant`. **For production, skip the tunnel — deploy to Workers instead (below).**
+The demo's punch is proportional to how *differently* your two users are authorized.
 
----
-
-## Deploy to Cloudflare Workers (real, always-on)
-
-No tunnel needed — the Worker has a public URL, and **Inngest Cloud** drives the durable workflow.
-
+## Deploy to Cloudflare Workers
 ```bash
-# 1. Inngest Cloud keys (from the Inngest dashboard) + your other keys, as Worker secrets:
-npx wrangler secret put ARCADE_API_KEY
-npx wrangler secret put ARCADE_USER_ID
-npx wrangler secret put CURSOR_API_KEY
-npx wrangler secret put INNGEST_EVENT_KEY      # sends events to Inngest Cloud
-npx wrangler secret put INNGEST_SIGNING_KEY    # verifies Inngest -> Worker
-npx wrangler secret put VAPI_PRIVATE_KEY        # optional
-
-# 2. Deploy (do NOT set INNGEST_DEV in prod -> Inngest Cloud mode)
-npm run deploy                                  # wrangler deploy
-
-# 3. Register the app with Inngest Cloud
-curl -X PUT https://<your-worker>.workers.dev/api/inngest
-
-# 4. Point Vapi at the Worker
-#    set PUBLIC_URL=https://<your-worker>.workers.dev in .env, then:
-npm run create-assistant
+# Secrets (Inngest Cloud keys from the dashboard, plus your tool keys):
+npx wrangler secret put ARCADE_API_KEY        # + ARCADE_USER_ID, CURSOR_API_KEY,
+                                              #   INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY,
+                                              #   VAPI_PRIVATE_KEY, VAPI_PUBLIC_KEY,
+                                              #   VAPI_ASSISTANT_ID, CALLER_MAP
+npm run deploy                                # wrangler deploy (do NOT set INNGEST_DEV)
+curl -X PUT https://<your-worker>.workers.dev/api/inngest   # sync with Inngest Cloud
+# point PUBLIC_URL at the Worker, then:
+npm run create-assistant                      # upserts the Vapi assistant
 ```
-
-Non-secret config (`DEFAULT_REPO_URL`, `SLACK_CHANNEL`) lives in `wrangler.jsonc` `vars`. The `nodejs_compat_populate_process_env` flag exposes secrets+vars on `process.env`, so the same config code works on Node and Workers.
-
----
 
 ## Talk to it (voice)
-
-- **Dashboard**: open the assistant in the Vapi dashboard → **Talk to Assistant** (browser mic, zero setup).
-- **Web button**: visit `https://<your-worker>.workers.dev/call` and tap the mic — a click-to-talk page built on the Vapi web SDK (set `VAPI_PUBLIC_KEY` + `VAPI_ASSISTANT_ID` so it can connect).
-- **Phone**: provision a free Vapi number and attach the assistant, then call it:
+- **Dashboard:** open the assistant -> Talk to Assistant (browser mic).
+- **Web button:** `https://<your-worker>.workers.dev/call` — tap the mic.
+- **Phone:** provision a free Vapi number and attach the assistant, then call it:
 
 ```bash
 curl -X POST https://api.vapi.ai/phone-number \
   -H "Authorization: Bearer $VAPI_PRIVATE_KEY" -H "Content-Type: application/json" \
-  -d '{"provider":"vapi","assistantId":"<assistant-id>","numberDesiredAreaCode":"580"}'
+  -d '{"provider":"vapi","assistantId":"<id>","numberDesiredAreaCode":"580"}'
 ```
 
 ---
 
 ## Project tour
-
 ```
 voice-to-pr/
 ├── src/
-│   ├── app.ts                  # Hono app (routes) — runs on Node AND Workers
-│   ├── server.ts               # Node entry (@hono/node-server) for local dev
-│   ├── worker.ts               # Cloudflare Workers entry (export default app)
-│   ├── vapi.ts                 # parse tool-calls, build the { results: [...] } reply
-│   ├── config.ts               # lazy env config (Workers-safe) + mock detection
-│   ├── inngest/
-│   │   ├── client.ts           # Inngest client (dev server vs Cloud via isDev)
-│   │   └── functions.ts        # ⭐ the durable coding-task workflow
-│   └── integrations/
-│       ├── cursor.ts           # launch agent + poll run (raw fetch, mock fallback)
-│       └── arcade.ts           # authorize+execute Slack (mock fallback)
-├── assistant/vapi-assistant.json # Vapi assistant + tool definition
-├── scripts/                    # simulate-call · create-assistant · authorize
-└── wrangler.jsonc              # Cloudflare Workers config
+│   ├── app.ts                  # Hono: webhook routes both tools; synchronous grant-check (auth-interrupt)
+│   ├── identity.ts             # caller number / access code -> Arcade user_id (CALLER_MAP)
+│   ├── inngest/functions.ts    # ⭐ durable fan-out: Slack + GitHub PR + Gmail, all per-user, + governance recap
+│   ├── integrations/
+│   │   ├── arcade.ts           # per-user Slack/GitHub/Gmail (write + read) + grant-check
+│   │   └── cursor.ts           # launch agent (autoCreatePR:false -> Arcade opens the PR)
+│   ├── call-page.ts            # click-to-talk web demo
+│   ├── server.ts / worker.ts   # Node + Cloudflare Workers entrypoints
+│   └── config.ts / vapi.ts
+├── assistant/vapi-assistant.json  # assistant + submit_coding_task + brief_me
+└── scripts/                    # simulate-call · create-assistant (upsert) · authorize
 ```
 
-The heart is `src/inngest/functions.ts`. The poll loop is the part worth reading:
-
-```ts
-let run = await step.run("poll-0", () => getCursorRun(agent.agentId, agent.runId));
-let attempt = 0;
-while (!isTerminal(run.status) && attempt < MAX_POLLS) {
-  await step.sleep(`wait-${attempt}`, "30s");        // zero compute while we wait
-  attempt += 1;
-  run = await step.run(`poll-${attempt}`, () => getCursorRun(agent.agentId, agent.runId));
-}
-```
-
-Arcade calls are best-effort, and a missing OAuth grant is made **non-retriable** so it skips instantly instead of stalling the (critical) agent launch.
-
----
-
-## Demo script (≈90 seconds)
-
-1. "Voice AI is exploding and everyone's building coding agents. Let's connect them — production-shaped, not a happy-path script."
-2. Call the number (or `npm run simulate`). Say: *"There's a typo in the landing page footer, fix it."*
-3. The assistant reads back a tracking id. Hang up.
-4. Open the Inngest dashboard: show the steps, the `30s` sleeps, the poll loop. "It's durable — if this rebooted, the run resumes."
-5. Show the Slack message land with the PR link. "And that Slack post went out under a real user's OAuth, through Arcade — not a bot token with the keys to the kingdom."
+The heart is `src/inngest/functions.ts`: every side effect goes through a `runStep` that records "did" vs "denied (needs auth)" so the recap shows exactly what ran, as whom.
 
 ---
 
 ## Notes & caveats
+- **Cursor pushes the branch (service cred); Arcade opens the PR as the caller** — so the PR is attributed to the human, and an unauthorized caller can't open one.
+- **Two real users** with genuinely different grants make the divergence land; one fully authorized + one unauthorized is the minimum.
+- **Caller-ID is spoofable** — gate real permissions on the access code / a verified identity, not the number alone.
+- Local uses the Inngest dev server (`INNGEST_DEV=1`); production uses Inngest Cloud.
 
-- **Cursor repo access**: the agent only works on repos the Cursor GitHub app can access. A brand-new repo needs the app granted access first.
-- **Inngest**: local uses the dev server (`INNGEST_DEV=1`); production uses Inngest Cloud (event + signing keys). Cloud Agents API v1 webhooks are "coming soon" — that's why we poll durably. When they ship, swap the poll loop for a single `step.waitForEvent`.
-- **Arcade tool schema** (`Slack.SendMessage`) is centralized in `src/integrations/arcade.ts` — add more toolkits (Linear, GitHub, Jira, …) there.
-- Example-grade: add Vapi webhook signature verification (`VAPI_SERVER_SECRET`) and persistence before real production.
-
-MIT licensed — do whatever helps you ship.
+MIT licensed.

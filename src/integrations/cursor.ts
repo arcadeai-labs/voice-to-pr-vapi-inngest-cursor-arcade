@@ -49,7 +49,9 @@ export async function launchCursorAgent(input: {
   const body: Record<string, unknown> = {
     prompt: { text: input.instruction },
     repos: [repo],
-    autoCreatePR: true,
+    // The agent codes + pushes a branch; Arcade opens the PR as the caller
+    // (see createGitHubPr) so the PR is attributed to that human's grant.
+    autoCreatePR: false,
   };
   if (config.cursor.model) body.model = { id: config.cursor.model };
 

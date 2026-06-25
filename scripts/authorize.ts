@@ -11,7 +11,13 @@ if (!config.arcade.apiKey) {
 }
 
 const client = new Arcade({ apiKey: config.arcade.apiKey });
-const tools = ["Slack.SendMessage"];
+const tools = [
+  "Slack.SendMessage",
+  "Github.CreatePullRequest",
+  "Github.ListPullRequests",
+  "Gmail.SendEmail",
+  "Gmail.ListEmails",
+];
 
 for (const tool of tools) {
   try {
