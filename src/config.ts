@@ -59,9 +59,6 @@ export const config = {
     get slackChannel() {
       return process.env.SLACK_CHANNEL || "engineering";
     },
-    get linearTeam() {
-      return process.env.LINEAR_TEAM || "Engineering";
-    },
   },
 
   vapi: {

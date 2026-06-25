@@ -78,7 +78,6 @@ app.post("/api/vapi", async (c) => {
         repoUrl,
         instruction,
         slackChannel,
-        linearTeam: config.routing.linearTeam,
         userId: config.arcade.userId,
         callerName,
         callerNumber: caller.number,

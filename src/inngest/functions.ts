@@ -5,11 +5,11 @@
 //     pay for zero compute while we wait, and the run survives restarts/deploys.
 //   * Every `step.run` is checkpointed and retried independently — a flaky Slack
 //     call never re-launches the (expensive) coding agent.
-//   * Arcade notifications are best-effort; the PR pipeline is the contract.
+//   * The Slack notification is best-effort; the PR pipeline is the contract.
 
 import { NonRetriableError } from "inngest";
 import { CODING_TASK_EVENT, inngest, type CodingTaskData } from "./client.js";
-import { ArcadeAuthRequiredError, createLinearIssue, sendSlackMessage } from "../integrations/arcade.js";
+import { ArcadeAuthRequiredError, sendSlackMessage } from "../integrations/arcade.js";
 import { getCursorRun, isTerminal, launchCursorAgent } from "../integrations/cursor.js";
 
 const MAX_POLLS = 60; // 60 polls x 30s = up to 30 minutes of durable waiting.
@@ -17,7 +17,7 @@ const MAX_POLLS = 60; // 60 polls x 30s = up to 30 minutes of durable waiting.
 export const codingTaskWorkflow = inngest.createFunction(
   { id: "coding-task-workflow", name: "Voice → PR coding task", retries: 2, triggers: { event: CODING_TASK_EVENT } },
   async ({ event, step }) => {
-    const { requestId, repoUrl, instruction, slackChannel, linearTeam, userId, callerName } =
+    const { requestId, repoUrl, instruction, slackChannel, userId, callerName } =
       event.data as CodingTaskData;
     const who = callerName ? `${callerName}` : "A caller";
 
@@ -52,22 +52,12 @@ export const codingTaskWorkflow = inngest.createFunction(
       }),
     );
 
-    // 2) Track the request in Linear so it shows up in the normal workflow.
-    const issue = await bestEffort("create-linear-issue", () =>
-      createLinearIssue({
-        title: `[voice] ${truncate(instruction, 60)}`,
-        description: `Requested by voice call.\n\nRepo: ${repoUrl}\nCaller: ${who}\nRequest ID: ${requestId}\n\n> ${instruction}`,
-        team: linearTeam,
-        userId,
-      }),
-    );
-
-    // 3) Launch the Cursor Cloud Agent (this is the actual coding work).
+    // 2) Launch the Cursor Cloud Agent (this is the actual coding work).
     const agent = await step.run("launch-cursor-agent", () =>
       launchCursorAgent({ repoUrl, instruction, requestId }),
     );
 
-    // 4) Durably wait for the agent to finish: poll, then sleep, repeat.
+    // 3) Durably wait for the agent to finish: poll, then sleep, repeat.
     let run = await step.run("poll-0", () => getCursorRun(agent.agentId, agent.runId));
     let attempt = 0;
     while (!isTerminal(run.status) && attempt < MAX_POLLS) {
@@ -76,7 +66,7 @@ export const codingTaskWorkflow = inngest.createFunction(
       run = await step.run(`poll-${attempt}`, () => getCursorRun(agent.agentId, agent.runId));
     }
 
-    // 5) Report the outcome back to the team (and a Linear breadcrumb).
+    // 4) Report the outcome back to the team.
     const succeeded = run.status === "FINISHED" && Boolean(run.prUrl);
     const summary = succeeded
       ? `:white_check_mark: PR ready for ${who}: ${run.prUrl}\n_${run.text ?? "Done."}_ (${formatDuration(run.durationMs)})\nAgent: ${agent.agentUrl}`
@@ -91,15 +81,10 @@ export const codingTaskWorkflow = inngest.createFunction(
       status: run.status,
       prUrl: run.prUrl ?? null,
       agentUrl: agent.agentUrl,
-      linearIssue: issue?.identifier ?? null,
       polls: attempt + 1,
     };
   },
 );
-
-function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
-}
 
 function formatDuration(ms?: number): string {
   if (!ms) return "just now";

@@ -9,7 +9,7 @@ A small, readable, **deployable** example that wires four best-in-class pieces o
 | 🎙️ Voice front door | **[Vapi](https://vapi.ai)** | Answers the call, transcribes intent, calls one tool: `submit_coding_task`. |
 | ⛓️ Durable orchestration | **[Inngest](https://www.inngest.com)** | Runs the multi-step workflow, sleeps/polls while the agent works, retries every step, survives restarts. |
 | 🤖 The coding agent | **[Cursor Cloud Agents](https://cursor.com/docs/cloud-agent/api/endpoints)** | Actually edits the repo and opens the PR. |
-| 🔐 Authenticated actions | **[Arcade](https://arcade.dev)** | Files the Linear issue and posts to Slack **as a real user**, via per-user OAuth — no shared bot tokens. |
+| 🔐 Authenticated action | **[Arcade](https://arcade.dev)** | Posts to Slack **as a real user**, via per-user OAuth — no shared bot tokens. |
 | ☁️ Host | **[Cloudflare Workers](https://workers.cloudflare.com)** | Always-on public endpoint, deployed with `wrangler deploy`. |
 
 > Runs locally in **mock mode with zero accounts**, locally **live** with your keys, and **deploys to Cloudflare Workers** for a real always-on URL. It's a bring-your-own-keys template: anyone with their own keys can run or deploy it.
@@ -20,7 +20,7 @@ A small, readable, **deployable** example that wires four best-in-class pieces o
 
 - **The "wow" is real**: talking to a phone number and getting a PR back lands every time.
 - **It shows why durable execution matters.** A coding agent can run for minutes. Inngest `step.sleep`s between polls so you burn zero compute while waiting, and a flaky Slack post never re-triggers the expensive agent. On Workers this is *ideal* — each step is a sub-second invocation and the 30-minute wait lives on Inngest's side.
-- **It shows what Arcade is _for_.** The agent's side effects (Linear, Slack) execute scoped to the caller's own OAuth grant — multi-tenant-safe by construction. Swap in any Arcade toolkit without touching auth code.
+- **It shows what Arcade is _for_.** The agent's Slack post executes scoped to the caller's own OAuth grant — multi-tenant-safe by construction. Swap in or add any Arcade toolkit (Linear, GitHub, Jira, …) without touching auth code.
 - **It mirrors Cursor's own pitch** ("a Linear ticket triggers a cloud agent") generalized to **"a phone call triggers a cloud agent."**
 
 ---
@@ -36,13 +36,11 @@ flowchart LR
 
     subgraph F [coding-task-workflow]
       direction TB
-      N1[notify Slack] --> L1[file Linear issue]
-      L1 --> C1[launch Cursor agent]
+      N1[notify Slack] --> C1[launch Cursor agent]
       C1 --> P{poll + sleep 30s\nuntil terminal}
       P --> R[notify PR ready]
     end
 
-    L1 -. Arcade .-> LIN[(Linear)]
     N1 -. Arcade .-> SL[(Slack)]
     R  -. Arcade .-> SL
     C1 -->|POST /v1/agents| CUR[Cursor Cloud Agent]
@@ -75,7 +73,7 @@ Each integration flips mock → live the moment its key is present in `.env`.
 
 | Var | What | Where |
 | --- | --- | --- |
-| `ARCADE_API_KEY` | Arcade tool calls (Slack + Linear) | <https://docs.arcade.dev/en/get-started/setup/api-keys> |
+| `ARCADE_API_KEY` | Arcade tool calls (Slack) | <https://docs.arcade.dev/en/get-started/setup/api-keys> |
 | `ARCADE_USER_ID` | The user whose OAuth the actions run under | your email / stable id |
 | `CURSOR_API_KEY` | Launch Cloud Agents | Cursor Dashboard → API Keys |
 | `DEFAULT_REPO_URL` | Repo the agent edits (must be authorized for the Cursor GitHub app) | a GitHub repo URL |
@@ -83,7 +81,7 @@ Each integration flips mock → live the moment its key is present in `.env`.
 | `INNGEST_DEV=1` | Use the local Inngest dev server | keep for local dev |
 
 ```bash
-npm run authorize            # one-time: approve Slack + Linear OAuth for ARCADE_USER_ID
+npm run authorize            # one-time: approve Slack OAuth for ARCADE_USER_ID
 npm run dev                  # + npm run inngest in another terminal
 npm run simulate -- "Add a CONTRIBUTING.md"
 ```
@@ -135,7 +133,7 @@ voice-to-pr/
 │   │   └── functions.ts        # ⭐ the durable coding-task workflow
 │   └── integrations/
 │       ├── cursor.ts           # launch agent + poll run (raw fetch, mock fallback)
-│       └── arcade.ts           # authorize+execute Slack/Linear (mock fallback)
+│       └── arcade.ts           # authorize+execute Slack (mock fallback)
 ├── assistant/vapi-assistant.json # Vapi assistant + tool definition
 ├── scripts/                    # simulate-call · create-assistant · authorize
 └── wrangler.jsonc              # Cloudflare Workers config
@@ -163,7 +161,7 @@ Arcade calls are best-effort, and a missing OAuth grant is made **non-retriable*
 2. Call the number (or `npm run simulate`). Say: *"There's a typo in the landing page footer, fix it."*
 3. The assistant reads back a tracking id. Hang up.
 4. Open the Inngest dashboard: show the steps, the `30s` sleeps, the poll loop. "It's durable — if this rebooted, the run resumes."
-5. Show the Slack message land with the PR link. "And that Slack post + Linear issue went out under a real user's OAuth, through Arcade — not a bot token with the keys to the kingdom."
+5. Show the Slack message land with the PR link. "And that Slack post went out under a real user's OAuth, through Arcade — not a bot token with the keys to the kingdom."
 
 ---
 
@@ -171,7 +169,7 @@ Arcade calls are best-effort, and a missing OAuth grant is made **non-retriable*
 
 - **Cursor repo access**: the agent only works on repos the Cursor GitHub app can access. A brand-new repo needs the app granted access first.
 - **Inngest**: local uses the dev server (`INNGEST_DEV=1`); production uses Inngest Cloud (event + signing keys). Cloud Agents API v1 webhooks are "coming soon" — that's why we poll durably. When they ship, swap the poll loop for a single `step.waitForEvent`.
-- **Arcade tool schemas** (`Slack.SendMessage`, `Linear.CreateIssue`) are centralized in `src/integrations/arcade.ts`.
+- **Arcade tool schema** (`Slack.SendMessage`) is centralized in `src/integrations/arcade.ts` — add more toolkits (Linear, GitHub, Jira, …) there.
 - Example-grade: add Vapi webhook signature verification (`VAPI_SERVER_SECRET`) and persistence before real production.
 
 MIT licensed — do whatever helps you ship.

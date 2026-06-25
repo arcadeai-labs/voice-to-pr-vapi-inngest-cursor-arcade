@@ -13,7 +13,6 @@ export type CodingTaskData = {
   repoUrl: string;
   instruction: string;
   slackChannel: string;
-  linearTeam: string;
   userId: string;
   callerName?: string;
   callerNumber?: string;

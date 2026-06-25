@@ -11,7 +11,7 @@ if (!config.arcade.apiKey) {
 }
 
 const client = new Arcade({ apiKey: config.arcade.apiKey });
-const tools = ["Slack.SendMessage", "Linear.CreateIssue"];
+const tools = ["Slack.SendMessage"];
 
 for (const tool of tools) {
   try {
