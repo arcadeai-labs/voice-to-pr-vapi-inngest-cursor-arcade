@@ -53,6 +53,16 @@ flowchart LR
 
 ---
 
+## Contextual Access (the governance layer)
+
+On top of per-user OAuth, Arcade's Contextual Access (CATE) hooks run *your* policy inline on every tool call — no changes to the tools or the agent. This demo ships all three, served by the same Worker ([src/cate.ts](voice-to-pr/src/cate.ts), routes `/hooks/access|pre|post`):
+
+- **Access** — read-only callers (`READONLY_USERS`) can't even *see* write tools (Slack/GitHub/Gmail sends); they keep the read tools.
+- **Pre-execution** — PRs only on `ALLOWED_GITHUB_OWNERS`; email only to `ALLOWED_EMAIL_DOMAIN`. Anything else is blocked with a reason the agent speaks.
+- **Post-execution** — secrets/PII (OTP codes, API keys, SSNs) are redacted from tool output before they reach the agent — so nothing sensitive is read aloud over the phone.
+
+Wire it with the Arcade admin API (`/v1/admin/plugins` — register a webhook plugin pointing at `/hooks/*`, then set it `active`) or the dashboard. Verified live: `Github.CreatePullRequest` on a non-allowlisted owner returns `CONTEXT_DENIED` with the policy reason, *before* any GitHub call. (Set `CATE_HOOK_TOKEN` to authenticate Arcade -> your hooks in production.)
+
 ## Tools the assistant exposes
 - `submit_coding_task` — code change -> Cursor branch -> **Arcade opens the PR as the caller** + Slack + Gmail, each per-user.
 - `brief_me` — read the caller's own Gmail + open PRs (per-user, read-only).

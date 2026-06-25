@@ -95,6 +95,28 @@ export const config = {
     },
   },
 
+  // Contextual Access (CATE) hook policy knobs.
+  cate: {
+    get hookToken() {
+      return process.env.CATE_HOOK_TOKEN ?? "";
+    },
+    get readonlyUsers(): string[] {
+      return (process.env.READONLY_USERS ?? "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+    },
+    get allowedGithubOwners(): string[] {
+      return (process.env.ALLOWED_GITHUB_OWNERS ?? "ArcadeAI,arcadeai-labs")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    },
+    get allowedEmailDomain() {
+      return process.env.ALLOWED_EMAIL_DOMAIN ?? "arcade.dev";
+    },
+  },
+
   mock: {
     get agentPolls() {
       return Number(process.env.MOCK_AGENT_POLLS ?? 2);

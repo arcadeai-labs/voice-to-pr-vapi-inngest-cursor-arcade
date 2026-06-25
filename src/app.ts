@@ -10,6 +10,7 @@
 import { Hono } from "hono";
 import { serve as inngestServe } from "inngest/hono";
 import { callPageHtml } from "./call-page.js";
+import { accessHook, hookHealth, postHook, preHook, verifyHookAuth } from "./cate.js";
 import { config, describeMode } from "./config.js";
 import { identifyCaller } from "./identity.js";
 import { CODING_TASK_EVENT, inngest } from "./inngest/client.js";
@@ -47,6 +48,21 @@ app.get("/", (c) =>
 );
 
 app.get("/call", (c) => c.html(callPageHtml(config.vapi.publicKey, config.vapi.assistantId)));
+
+// Arcade Contextual Access (CATE) hooks — Arcade calls these during tool execution.
+app.get("/hooks/health", (c) => c.json(hookHealth()));
+app.post("/hooks/access", async (c) => {
+  if (!verifyHookAuth(c.req.header("authorization"))) return c.json({ error: "unauthorized" }, 401);
+  return c.json(accessHook(await c.req.json().catch(() => ({}))));
+});
+app.post("/hooks/pre", async (c) => {
+  if (!verifyHookAuth(c.req.header("authorization"))) return c.json({ error: "unauthorized" }, 401);
+  return c.json(preHook(await c.req.json().catch(() => ({}))));
+});
+app.post("/hooks/post", async (c) => {
+  if (!verifyHookAuth(c.req.header("authorization"))) return c.json({ error: "unauthorized" }, 401);
+  return c.json(postHook(await c.req.json().catch(() => ({}))));
+});
 
 app.on(["GET", "POST", "PUT"], "/api/inngest", inngestServe({ client: inngest, functions }));
 

@@ -13,6 +13,9 @@
   // Do NOT set INNGEST_DEV in production (absence -> Inngest Cloud).
   "vars": {
     "DEFAULT_REPO_URL": "https://github.com/ArcadeAI/cursor-cloud-agents-demo",
-    "SLACK_CHANNEL": "voice-to-pr"
+    "SLACK_CHANNEL": "voice-to-pr",
+    "READONLY_USERS": "contractor@voicetopr.demo",
+    "ALLOWED_GITHUB_OWNERS": "ArcadeAI,arcadeai-labs",
+    "ALLOWED_EMAIL_DOMAIN": "arcade.dev"
   }
 }
